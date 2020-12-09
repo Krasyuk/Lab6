@@ -1,0 +1,263 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Список платежей</title>
+    <link href="lib/bootstrap/dist/css/bootstrap.css" rel="stylesheet" />
+    <script src="lib/jquery/dist/jquery.js"></script>
+    <link href="lib/jquery-ui/themes/base/jquery-ui.min.css" rel="stylesheet" />
+    <script src="lib/jquery-ui/jquery-ui.js"></script>
+    <script src="lib/jquery-ui/ui/i18n/datepicker-ru.js"></script>
+</head>
+<body>
+    <h2>Список платежей</h2>
+    <form name="paymentForm">
+        <input type="hidden" name="paymentId" value="0" />
+        <div class="form-group col-md-5">
+            <label for="nameOfCourses">Наименование курса :</label>
+            <input class="form-control" name="nameOfCourses" />
+        </div>
+        <div class="form-group col-md-5">
+            <label for="date">Дата :</label>
+            <input class="form-control" name="date" />
+        </div>
+        <div class="form-group col-md-5">
+            <label for="sum">Платёж :</label>
+            <input class="form-control" name="sum" />
+        </div>
+        <div class="form-group col-md-5">
+            <label for="nameOfListener">ФИО слушателя:</label>
+            <select id="listenerId" name="listenerId"></select>
+        </div>
+        <div class="form-group col-md-5">
+            <label for="lastPaymentDate">Дата последнего платежа:</label>
+            <input class="form-control" name="lastPaymentDate" />
+        </div>
+        <div class="form-group col-md-5">
+            <label for="nameOfCourse">Наименование курса:</label>
+            <select id="courseId" name="courseId"></select>
+        </div>
+        <div class="panel-body">
+            <button type="submit" id="submit" class="btn btn-primary">Сохранить</button>
+            <a id="reset" class="btn btn-primary">Сброс</a>
+        </div>
+    </form>
+    <table class="table table-condensed table-striped  col-md-6">
+        <thead><tr><th>Id</th><th>Наименование курса</th><th>Дата</th><th>Платёж</th><th>ФИО слушателя</th><th>Дата последнего платежа</th><th>Наименование курса</th><th></th></tr></thead>
+        <tbody>
+        </tbody>
+    </table>
+    <script>
+        async function GetPayments() {
+            const response = await fetch("/api/payments", {
+                method: "GET",
+                headers: { "Accept": "application/json" }
+            });
+            if (response.ok === true) {
+                const payments = await response.json();
+                let rows = document.querySelector("tbody");
+                payments.forEach(payment => {
+                    rows.append(row(payment));
+                });
+            }
+        }
+        async function GetPayment(id) {
+            $.ajax({
+                url: '/api/payments/' + id,
+                type: 'GET',
+                contentType: "application/json",
+                success: function (payment) {
+                    var form = document.forms["paymentForm"];
+                    form.elements["paymentId"].value = payment.paymentId;
+                    form.elements["nameOfCourses"].value = payment.nameOfCourses;
+                    form.elements["date"].value = payment.date;
+                    form.elements["sum"].value = payment.sum;
+                    form.elements["listenerId"].value = payment.listenerId;
+                    form.elements["lastPaymentDate"].value = payment.lastPaymentDate;
+                    form.elements["courseId"].value = payment.courseId;
+                }
+            });
+        }
+        async function CreatePayment(nameOfCourses, date, sum, listenerId, lastPaymentDate, courseId) {
+
+            $.ajax({
+                url: "api/payments/",
+                contentType: "application/json",
+                method: "POST",
+                data: JSON.stringify({
+                    nameOfCourses: nameOfCourses,
+                    date: date,
+                    sum: parseFloat(sum, 10),
+                    listenerId: parseInt(listenerId, 10),
+                    lastPaymentDate: lastPaymentDate,
+                    courseId: parseInt(courseId, 10)
+                }),
+                success: function (payment) {
+                    reset();
+                    var form = document.forms["paymentForm"];
+                    payment.nameOfListener = form.elements["listenerId"].options[listenerId].text;
+                    payment.nameOfCourse = form.elements["courseId"].options[courseId].text;
+                    document.querySelector("tbody").append(row(payment));
+                }
+            })
+        }
+        async function EditPayment(paymentId, nameOfCourses, date, sum, listenerId, lastPaymentDate, courseId) {
+            const response = await fetch("api/payments/", {
+                method: "PUT",
+                headers: { "Accept": "application/json", "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    paymentId: parseInt(paymentId, 10),
+                    nameOfCourses: nameOfCourses,
+                    date: date,
+                    sum: parseFloat(sum, 10),
+                    listenerId: parseInt(listenerId, 10),
+                    lastPaymentDate: lastPaymentDate,
+                    courseId: parseInt(courseId, 10)
+                })
+            });
+            if (response.ok === true) {
+                const payment = await response.json();
+                reset();
+                var form = document.forms["paymentForm"];
+                payment.nameOfListener = form.elements["listenerId"].options[listenerId].text;
+                payment.nameOfCourse = form.elements["courseId"].options[courseId].text;
+                document.querySelector("tr[data-rowid='" + payment.paymentId + "']").replaceWith(row(payment));
+            }
+        }
+        async function DeletePayment(id) {
+            const response = await fetch("/api/payments/" + id, {
+                method: "DELETE",
+                headers: { "Accept": "application/json" }
+            });
+            if (response.ok === true) {
+                const payment = await response.json();
+                document.querySelector("tr[data-rowid='" + payment.paymentId + "']").remove();
+            }
+        }
+
+        function GetCourses() {
+            var listItems = "";
+            $.ajax({
+                url: '/api/payments/courses',
+                type: 'GET',
+                contentType: "application/json",
+                success: function (courses) {
+                    listItems = listItems + "<option value=0 selected>(выбор)</option>";
+                    $.each(courses, function (index, course) {
+                        listItems = listItems + "<option value='" + course.courseId + "'>" + course.nameOfCourse + "</option>";
+                    });
+                    $("#courseId").html(listItems);
+                }
+            });
+        }
+        function GetListeners() {
+            var listItems = "";
+            $.ajax({
+                url: '/api/payments/listeners',
+                type: 'GET',
+                contentType: "application/json",
+                success: function (listeners) {
+                    listItems = listItems + "<option value=0 selected>(выбор)</option>";
+                    $.each(listeners, function (index, listener) {
+                        listItems = listItems + "<option value='" + listener.listenerId + "'>" + listener.nameOfListener + "</option>";
+                    });
+                    $("#listenerId").html(listItems);
+                }
+            });
+        }
+
+        function reset() {
+            const form = document.forms["paymentForm"];
+            form.reset();
+            form.elements["paymentId"].value = 0;
+        }
+        function row(payment) {
+
+            const tr = document.createElement("tr");
+            tr.setAttribute("data-rowid", payment.paymentId);
+
+            const idTd = document.createElement("td");
+            idTd.append(payment.paymentId);
+            tr.append(idTd);
+
+            const nameOfCoursesTd = document.createElement("td");
+            nameOfCoursesTd.append(payment.nameOfCourses);
+            tr.append(nameOfCoursesTd);
+
+            const dateTd = document.createElement("td");
+            dateTd.append(payment.date);
+            tr.append(dateTd);
+
+            const sumTd = document.createElement("td");
+            sumTd.append(payment.sum);
+            tr.append(sumTd);
+
+            const listenerTd = document.createElement("td");
+            listenerTd.append(payment.nameOfListener);
+            tr.append(listenerTd);
+
+            const lastPaymentDateTd = document.createElement("td");
+            lastPaymentDateTd.append(payment.lastPaymentDate);
+            tr.append(lastPaymentDateTd);
+
+            const courseTd = document.createElement("td");
+            courseTd.append(payment.nameOfCourse);
+            tr.append(courseTd);
+
+            const linksTd = document.createElement("td");
+
+            const editLink = document.createElement("a");
+            editLink.setAttribute("data-id", payment.paymentId);
+            editLink.setAttribute("style", "cursor:pointer;padding:15px;");
+            editLink.append("Изменить");
+            editLink.addEventListener("click", e => {
+
+                e.preventDefault();
+                GetPayment(payment.paymentId);
+            });
+            linksTd.append(editLink);
+
+            const removeLink = document.createElement("a");
+            removeLink.setAttribute("data-id", payment.paymentId);
+            removeLink.setAttribute("style", "cursor:pointer;padding:15px;");
+            removeLink.append("Удалить");
+            removeLink.addEventListener("click", e => {
+
+                e.preventDefault();
+                DeletePayment(payment.paymentId);
+            });
+
+            linksTd.append(removeLink);
+            tr.appendChild(linksTd);
+
+            return tr;
+        }
+
+        $("#reset").click(function (e) {
+            e.preventDefault();
+            reset();
+        })
+
+        document.forms["paymentForm"].addEventListener("submit", e => {
+            e.preventDefault();
+            const form = document.forms["paymentForm"];
+            const id = form.elements["paymentId"].value;
+            const nameOfCourses = form.elements["nameOfCourses"].value;
+            const date = form.elements["date"].value;
+            const sum = form.elements["sum"].value;
+            const listenerId = form.elements["listenerId"].value;
+            const lastPaymentDate = form.elements["lastPaymentDate"].value;
+            const courseId = form.elements["courseId"].value;
+            if (id == 0)
+                CreatePayment(nameOfCourses, date, sum, listenerId, lastPaymentDate, courseId);
+            else
+                EditPayment(id, nameOfCourses, date, sum, listenerId, lastPaymentDate, courseId);
+        });
+
+        GetPayments();
+        GetCourses();
+        GetListeners();
+    </script>
+</body>
+</html>
